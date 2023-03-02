@@ -110,9 +110,13 @@ function App() {
     ball.position.copy(ballBody.position);
     ball.quaternion.copy(ballBody.quaternion);
 
+    // const helper = new THREE.AxesHelper(3);
+    // helper.position.set(0,20,5);
+
     scene.add(camera);
     scene.add(board);
     scene.add(ball);
+    // scene.add(helper);
 
     var ambientLight = new THREE.AmbientLight(0xd5d5d5);
     ambientLight.intensity = 1;
