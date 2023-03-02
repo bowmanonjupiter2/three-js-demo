@@ -1,11 +1,12 @@
 import "./App.css";
 import * as THREE from "three";
-import { RotationJoystickControls } from "three-joystick";
+import { JoystickControls } from "three-joystick";
+import { MeshPhysicalMaterial } from "three";
 
 function App() {
-  var scene, camera, renderer, board;
+  var scene, camera, renderer, board, ball;
 
-  var rotationJoyStick;
+  var joystickControls;
 
   let FOV;
   let FAR;
@@ -35,31 +36,47 @@ function App() {
 
     let pixelRatio = window.devicePixelRatio
     let AA = true;
-    if (pixelRatio > 1 ) {
-      AA = false;
-    }
+    // if (pixelRatio > 1 ) {
+    //   AA = false;
+    // }
 
     renderer = new THREE.WebGLRenderer({ antialias: AA, powerPreference: "high-performance", });
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     document.body.appendChild(renderer.domElement);
 
-    const geometry = new THREE.BoxGeometry(15, 15, 0.5);
+    const geometry = new THREE.BoxGeometry(15, 15, 1);
+    const physijsMaterial = new MeshPhysicalMaterial()
     const material = new THREE.MeshBasicMaterial({
       color: 0x0abab5,
       wireframe: false,
     });
     material.metalness = 0.75;
     material.roughness = 0.2;
+
+    const geometry2 = new THREE.SphereGeometry(1);
+    const material2 = new THREE.MeshBasicMaterial({
+      color: 0x0000ff,
+      wireframe: false,
+    });
+    material.metalness = 0.75;
+    material.roughness = 0.2;
+
     board = new THREE.Mesh(geometry, material);
+    ball = new THREE.Mesh(geometry2,material2);
 
-    rotationJoyStick = new RotationJoystickControls(camera, scene, board);
+    joystickControls = new JoystickControls(camera, scene);
 
-    rotationJoyStick.joystickScale = 8;
+    joystickControls.joystickScale = 8;
+
+
 
     scene.add(camera);
     scene.add(board);
+    scene.add(ball);
     addLight();
+
+    ball.translateZ(1);
 
     // board.rotation.y = Math.PI / 2;
     // camera.lookAt(0,0,0);
@@ -88,9 +105,19 @@ function App() {
   }
 
   function animate() {
+
     requestAnimationFrame(animate);
 
-    rotationJoyStick.update();
+    joystickControls.update((movement) => {
+      if (movement) {
+        const sensitivity = 0.00005;
+        if (Math.abs(movement.moveX) >= Math.abs(movement.moveY)) {
+          board.rotation.y += movement.moveX * sensitivity;
+        } else {
+          board.rotation.x += movement.moveY * sensitivity;
+        }
+      }
+    });
 
     renderer.render(scene, camera);
   }
