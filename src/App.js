@@ -1,50 +1,21 @@
 import "./App.css";
+import { useEffect } from "react";
+
 import * as THREE from "three";
 import { JoystickControls } from "three-joystick";
-import * as CANNON from 'cannon-es';
-import { useEffect } from "react";
+import * as CANNON from "cannon-es";
 
 function App() {
   useEffect(() => {
+    let scene, camera, renderer, board, ball, box, joystickControls;
+    let cannonWorld, groundBody, ballBody, boxBody;
+    let clock;
 
-    var scene, camera, renderer, board, ball, joystickControls;
-    var cannonWorld, groundBody, ballBody;
+    clock = new THREE.Clock();
 
-    cannonWorld = new CANNON.World();
-    cannonWorld.gravity.set(0, 0, -9.82);
-    cannonWorld.broadphase = new CANNON.NaiveBroadphase();
-    cannonWorld.solver.iterations = 5;
-
-    // var physicsMaterial = new CANNON.Material("groundMaterial");
-    // var physicsContactMaterial = new CANNON.ContactMaterial(
-    //   physicsMaterial,
-    //   physicsMaterial,
-    //   0.4,
-    //   0.0
-    // );
-    groundBody = new CANNON.Body({
-      mass: 0,
-      position : new CANNON.Vec3(0,0,-0.5),
-      shape: new CANNON.Box(new CANNON.Vec3(8,8,0.5)),
-      // type: CANNON.Body.STATIC,
-      // shape : new CANNON.Plane(),
-      material: new CANNON.Material({friction: 0.5, restitution: 0.1})
-      // material: physicsContactMaterial
-    });
-
-    ballBody = new CANNON.Body({
-      mass: 1,
-      position: new CANNON.Vec3(0,0,0.5),
-      shape : new CANNON.Sphere(0.5),
-      material: new CANNON.Material({friction: 0.5, restitution: 0.1})
-    });
-
-    cannonWorld.addBody(groundBody);
-    cannonWorld.addBody(ballBody);
-
-    let FOV;
-    let FAR;
-    let NEAR = 0.1;
+    let FOV,
+      FAR,
+      NEAR = 0.1;
 
     if (window.innerWidth <= 768) {
       FOV = 50;
@@ -57,6 +28,49 @@ function App() {
       FAR = 1800;
     }
 
+    cannonWorld = new CANNON.World();
+    cannonWorld.gravity.set(0, 0, -4.0);
+    cannonWorld.broadphase = new CANNON.NaiveBroadphase();
+    cannonWorld.solver.iterations = 5;
+
+    groundBody = new CANNON.Body({
+      mass: 0,
+      position: new CANNON.Vec3(0, 0, -0.5),
+      shape: new CANNON.Box(new CANNON.Vec3(8, 8, 0.5)),
+      material: new CANNON.Material({ friction: 0.5, restitution: 0.1 }),
+    });
+
+    const randomX = Math.floor(-4 + Math.random() * 8);
+    const randomY = Math.floor(-4 + Math.random() * 8);
+
+    ballBody = new CANNON.Body({
+      mass: 5,
+      position: new CANNON.Vec3(randomX, randomY, 0.5),
+      shape: new CANNON.Sphere(0.5),
+      material: new CANNON.Material({ friction: 0.5, restitution: 0.0 }),
+    });
+
+    ballBody.addEventListener("collide", function (e) {
+      if (e.body === boxBody) {
+        window.location.reload();
+        alert("new record:" + Math.round(clock.getElapsedTime()) + " seconds!");
+      }
+    });
+
+    const randomX2 = Math.floor(-6 + Math.random() * 12);
+    const randomY2 = Math.floor(-6 + Math.random() * 12);
+
+    boxBody = new CANNON.Body({
+      mass: 5,
+      position: new CANNON.Vec3(randomX2, randomY2, 0.5),
+      shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)),
+      material: new CANNON.Material({ friction: 0.5, restitution: 0.0 }),
+    });
+
+    cannonWorld.addBody(groundBody);
+    cannonWorld.addBody(ballBody);
+    cannonWorld.addBody(boxBody);
+
     scene = new THREE.Scene();
 
     camera = new THREE.PerspectiveCamera(
@@ -67,7 +81,7 @@ function App() {
     );
     camera.position.z = 40;
     camera.position.y = -30;
-    camera.lookAt(0,-5,0);
+    camera.lookAt(scene.position);
 
     joystickControls = new JoystickControls(camera, scene);
     joystickControls.joystickScale = 8;
@@ -82,62 +96,69 @@ function App() {
     document.body.appendChild(renderer.domElement);
 
     const boardGeometry = new THREE.BoxGeometry(16, 16, 1);
-    const boardMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0abab5,
-      wireframe: false,
-    });
-    boardMaterial.metalness = 0.75;
-    boardMaterial.roughness = 0.2;
 
-    const ballGeometry = new THREE.SphereGeometry(0.5);
-    const ballMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0000ff,
-      wireframe: false,
-    });
-    ballMaterial.metalness = 0.75;
-    ballMaterial.roughness = 0.2;
+    const boardTexture = new THREE.TextureLoader().load("cpu_ground.jpg");
+    const boardMaterial = new THREE.MeshBasicMaterial({ map: boardTexture });
 
     board = new THREE.Mesh(boardGeometry, boardMaterial);
     board.receiveShadow = true;
-    // board.translateZ(-0.5);
-    // board.userData = groundBody;
+
     board.position.copy(groundBody.position);
     board.quaternion.copy(groundBody.quaternion);
 
+    const ballGeometry = new THREE.SphereGeometry(0.5, 30, 30);
+    const ballMaterial = new THREE.MeshPhongMaterial({
+      shininess: 50,
+      normalMap: new THREE.TextureLoader().load("map.jpg"),
+      wireframe: false,
+      specular: 0xffffff,
+      flatShading: false,
+      color: 0xff0000,
+    });
+
     ball = new THREE.Mesh(ballGeometry, ballMaterial);
-    // ball.translateZ(0.5);
-    // ball.userData = ballBody;
+    ball.castShadow = true;
+
     ball.position.copy(ballBody.position);
     ball.quaternion.copy(ballBody.quaternion);
 
-    // const helper = new THREE.AxesHelper(3);
-    // helper.position.set(0,20,5);
+    const boxGeometry = new THREE.BoxGeometry(1);
+    const boxMaterial = new THREE.MeshPhongMaterial({
+      shininess: 50,
+      normalMap: new THREE.TextureLoader().load("map.jpg"),
+      wireframe: false,
+      specular: 0xffffff,
+      flatShading: false,
+      color: 0x00ff00,
+    });
+
+    box = new THREE.Mesh(boxGeometry, boxMaterial);
+    box.castShadow = true;
+
+    box.position.copy(boxBody.position);
+    box.quaternion.copy(boxBody.quaternion);
 
     scene.add(camera);
     scene.add(board);
     scene.add(ball);
-    // scene.add(helper);
+    scene.add(box);
 
-    var ambientLight = new THREE.AmbientLight(0xd5d5d5);
-    ambientLight.intensity = 1;
-    ambientLight.position.set(6,-30,6);
+    const ambientLight = new THREE.AmbientLight(0xffffff);
+    ambientLight.intensity = 0.3;
+    //ambientLight.position.set(6, -30, 6);
     scene.add(ambientLight);
 
-    // var bottomRightDirectionLight = new THREE.DirectionalLight();
-    // bottomRightDirectionLight.position.x = 5;
-    // bottomRightDirectionLight.position.y = 3;
-    // bottomRightDirectionLight.position.z = -5;
-    // bottomRightDirectionLight.intensity = 1.3;
-    // scene.add(bottomRightDirectionLight);
+    const spotlight = new THREE.SpotLight(0xffffff, 0.4);
+    spotlight.castShadow = true;
+    spotlight.position.set(100, 100, 20);
+    scene.add(spotlight);
 
-    // var frontDirectionLight = new THREE.DirectionalLight();
-    // frontDirectionLight.position.x = -5;
-    // frontDirectionLight.position.y = 5;
-    // frontDirectionLight.position.z = 5;
-    // frontDirectionLight.intensity = 1.3;
-    // scene.add(frontDirectionLight);
+    const spotlight2 = new THREE.SpotLight(0xffffff, 0.4);
+    spotlight2.castShadow = true;
+    spotlight2.position.set(-50, -100, 50);
+    scene.add(spotlight2);
 
-
+    clock.start();
     animate();
 
     function animate() {
@@ -148,46 +169,28 @@ function App() {
       ball.position.copy(ballBody.position);
       ball.quaternion.copy(ballBody.quaternion);
 
+      box.position.copy(boxBody.position);
+      box.quaternion.copy(boxBody.quaternion);
+
       board.position.copy(groundBody.position);
       board.quaternion.copy(groundBody.quaternion);
 
-      // joystickControls.update((movement) => {
-
-      //   if (movement) {
-      //     const sensitivity = 0.00005;
-      //     if (Math.abs(movement.moveX) >= Math.abs(movement.moveY)) {
-      //       board.rotation.y += movement.moveX * sensitivity;
-      //     } else {
-      //       board.rotation.x += movement.moveY * sensitivity;
-      //     }
-      //   }
-      // });
-
-      // groundBody.position.copy(board.position);
-      // groundBody.quaternion.copy(board.quaternion);
-
       joystickControls.update((movement) => {
-
         if (movement) {
-          const sensitivity = 0.0001;
-          if (Math.abs(movement.moveX) >= Math.abs(movement.moveY)) {
-            //groundBody.rotation.y += movement.moveX * sensitivity;
-            groundBody.quaternion.y += movement.moveX * sensitivity;
-          } else {
-            //groundBody.rotation.x += movement.moveY * sensitivity;
-            groundBody.quaternion.x += movement.moveY * sensitivity;
-          }
+          const sensitivity = 0.00025;
+          groundBody.quaternion.y += movement.moveX * sensitivity;
+          groundBody.quaternion.x += movement.moveY * sensitivity;
+          // if (Math.abs(movement.moveX) >= Math.abs(movement.moveY)) {
+          //   groundBody.quaternion.y += movement.moveX * sensitivity;
+          // } else {
+          //   groundBody.quaternion.x += movement.moveY * sensitivity;
+          // }
         }
       });
-
-
       renderer.render(scene, camera);
     }
   }, []);
 
-  return (
-    <div/>
-  );
+  return <div />;
 }
-
 export default App;
