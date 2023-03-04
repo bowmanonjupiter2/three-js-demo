@@ -6,10 +6,14 @@ import { JoystickControls } from "three-joystick";
 import * as CANNON from "cannon-es";
 
 function App() {
+
   useEffect(() => {
+    console.log("start")
+
     let scene, camera, renderer, board, ball, box, joystickControls;
     let cannonWorld, groundBody, ballBody, boxBody;
     let clock;
+    let isAnimate = true;
 
     clock = new THREE.Clock();
 
@@ -28,8 +32,10 @@ function App() {
       FAR = 1800;
     }
 
+    // alert("rotate the board so that the ball can meet the box, ready?")
+
     cannonWorld = new CANNON.World();
-    cannonWorld.gravity.set(0, 0, -4.0);
+    cannonWorld.gravity.set(0, 0, -6.0);
     cannonWorld.broadphase = new CANNON.NaiveBroadphase();
     cannonWorld.solver.iterations = 5;
 
@@ -50,12 +56,20 @@ function App() {
       material: new CANNON.Material({ friction: 0.5, restitution: 0.0 }),
     });
 
-    ballBody.addEventListener("collide", function (e) {
-      if (e.body === boxBody) {
-        window.location.reload();
-        alert("new record:" + Math.round(clock.getElapsedTime()) + " seconds!");
-      }
-    });
+    ballBody.addEventListener(
+      "collide",
+      function (e) {
+        if (e.body === boxBody) {
+          isAnimate = false;
+          console.log("reload");
+          window.location.reload();
+          alert(
+            "new record:" + Math.round(clock.getElapsedTime()) + " seconds!"
+          );
+        }
+      },
+      false
+    );
 
     const randomX2 = Math.floor(-6 + Math.random() * 12);
     const randomY2 = Math.floor(-6 + Math.random() * 12);
@@ -72,6 +86,13 @@ function App() {
     cannonWorld.addBody(boxBody);
 
     scene = new THREE.Scene();
+    var img = new Image();
+    img.onload = function () {
+      scene.background = new THREE.TextureLoader().load(img.src);
+      setBackground(scene, img.width, img.height);
+    };
+    img.src = "outer-space-background.jpg";
+    // img.src = "thrive_board.png";
 
     camera = new THREE.PerspectiveCamera(
       FOV,
@@ -93,11 +114,22 @@ function App() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
 
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (scene.background) {
+        setBackground(setBackground, img.width, img.height);
+      }
+    }
+
     document.body.appendChild(renderer.domElement);
+    window.addEventListener("resize", onWindowResize, false);
 
     const boardGeometry = new THREE.BoxGeometry(16, 16, 1);
 
     const boardTexture = new THREE.TextureLoader().load("cpu_ground.jpg");
+    // const boardTexture = new THREE.TextureLoader().load("thrive_board.png");
     const boardMaterial = new THREE.MeshBasicMaterial({ map: boardTexture });
 
     board = new THREE.Mesh(boardGeometry, boardMaterial);
@@ -113,7 +145,7 @@ function App() {
       wireframe: false,
       specular: 0xffffff,
       flatShading: false,
-      color: 0xff0000,
+      color: 0xffff00,
     });
 
     ball = new THREE.Mesh(ballGeometry, ballMaterial);
@@ -129,7 +161,7 @@ function App() {
       wireframe: false,
       specular: 0xffffff,
       flatShading: false,
-      color: 0x00ff00,
+      color: 0xFF1493,
     });
 
     box = new THREE.Mesh(boxGeometry, boxMaterial);
@@ -158,13 +190,54 @@ function App() {
     spotlight2.position.set(-50, -100, 50);
     scene.add(spotlight2);
 
-    clock.start();
     animate();
+    clock.start();
+
+    function setBackground(scene, bgImgWidth, bgImgHeight) {
+      var windowSize = function (withScrollBar) {
+        var width = 0;
+        var height = 0;
+        if (typeof window.innerHeight != "undefined") {
+          width = window.innerWidth;
+          height = window.innerHeight;
+        } else {
+          if (document.documentElement.clientWidth === 0) {
+            width = document.body.clientWidth;
+            height = document.body.clientHeight;
+          } else {
+            width = document.documentElement.clientWidth;
+            height = document.documentElement.clientHeight;
+          }
+        }
+        return {
+          width:
+            width - (withScrollBar ? width - document.body.offsetWidth + 1 : 0),
+          height: height,
+        };
+      };
+      if (scene.background) {
+        var size = windowSize(true);
+        var factor = bgImgWidth / bgImgHeight / (size.width / size.height);
+        scene.background.offset.x = factor > 1 ? (1 - 1 / factor) / 2 : 0;
+        scene.background.offset.y = factor > 1 ? 0 : (1 - factor) / 2;
+        scene.background.repeat.x = factor > 1 ? 1 / factor : 1;
+        scene.background.repeat.y = factor > 1 ? 1 : factor;
+      }
+    }
 
     function animate() {
-      requestAnimationFrame(animate);
+      if (isAnimate) {
+        requestAnimationFrame(animate);
+      }
 
       cannonWorld.fixedStep();
+
+      if (ballBody.position.z <= -100 || boxBody.position.z <= -100) {
+        isAnimate = false;
+        console.log("reload");
+        window.location.reload();
+        alert("let's start over.");
+      }
 
       ball.position.copy(ballBody.position);
       ball.quaternion.copy(ballBody.quaternion);
@@ -178,8 +251,21 @@ function App() {
       joystickControls.update((movement) => {
         if (movement) {
           const sensitivity = 0.00025;
-          groundBody.quaternion.y += movement.moveX * sensitivity;
-          groundBody.quaternion.x += movement.moveY * sensitivity;
+
+          if (
+            Math.abs(groundBody.quaternion.y + movement.moveX * sensitivity) <=
+            0.3
+          ) {
+            groundBody.quaternion.y += movement.moveX * sensitivity;
+          }
+
+          if (
+            Math.abs(groundBody.quaternion.x + movement.moveY * sensitivity) <=
+            0.3
+          ) {
+            groundBody.quaternion.x += movement.moveY * sensitivity;
+          }
+
           // if (Math.abs(movement.moveX) >= Math.abs(movement.moveY)) {
           //   groundBody.quaternion.y += movement.moveX * sensitivity;
           // } else {
